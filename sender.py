@@ -19,7 +19,7 @@ def decapsulate(packet):
     return header, payload    
 
 def receiveReq(sock):
-    data, address = sock.recvfrom(10000) # FIX
+    data, address = sock.recvfrom(10000)
     header, payload = decapsulate(data)
     request = struct.unpack_from("!cII", payload)
     fname = payload[9:].decode('utf-8')
@@ -37,10 +37,6 @@ def receiveAck(sock):
     except socket.error as e:
         if e.args[0] == errno.EAGAIN or e.args[0] == errno.EWOULDBLOCK:
             pass
-
-def sendPacket(f_hostname, f_port, packet):
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.sendto(packet, (f_hostname, f_port))
 
 if __name__ == "__main__":
     p = argparse.ArgumentParser()
@@ -83,8 +79,7 @@ if __name__ == "__main__":
     for i in range(0,len(buf),window):
         for j in range(i,min(i+window,len(buf))):
 
-            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            sock.sendto(buf[j], args.f_hostname, args.f_port)
+            server.sendto(buf[j], args.f_hostname, args.f_port)
 
             times[j] = datetime.utcnow().timestamp() * 1000
             resend[j] = 0
@@ -104,7 +99,7 @@ if __name__ == "__main__":
                     check = False
                 if(not packets_rec[j+1] and resend[j] <5 and curr - times[j] > timeout):
                     total += 1
-                    sock.sendto(buf[j], (args.f_hostname, int(args.f_port)))
+                    server.sendto(buf[j], (args.f_hostname, int(args.f_port)))
                     times[j] = 1000 * datetime.utcnow().timestamp()
                     resend[j] += 1
                     time.sleep(1.0 / int(args.rate))  
@@ -114,7 +109,7 @@ if __name__ == "__main__":
     servIP = socket.inet_aton(socket.gethostbyname(socket.gethostname()))
     endPkt = struct.pack(f"!B4sH4sHI{len(payload)}s", args.priority, servIP, args.port, 
                              header[1], args.requestor_port, len(payload), payload)
-    sock.sendto(endPkt, (args.f_hostname, int(args.f_port)))
+    server.sendto(endPkt, (args.f_hostname, int(args.f_port)))
 
     print("Percent of packets lost: ",(total-expected)/total*100,"%")
         
