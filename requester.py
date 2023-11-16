@@ -1,0 +1,106 @@
+import argparse 
+import socket
+import struct
+import csv
+import collections
+import datetime
+from datetime import timedelta
+
+def decapsulate(packet):
+    header = struct.unpack_from("!B4sH4sHI",packet)
+    length = header[5]
+    return header, struct.unpack_from(f"!{length}s",packet,offset=17)[0]
+
+def sortTracker():
+    with open("tracker.txt", "r") as f:
+        reader = csv.reader(f,delimiter=' ')
+        d = {}
+        d.setdefault([])
+        for r in reader:
+            d[r].append((int(r[1]), r[2], int(r[3])))
+        
+        for key in d.keys():
+            d[key] = sorted(d[key], key = lambda x: x[0])
+        return d
+
+
+def receiveData(socket, numSend, f_port, e_name , e_port):
+    
+    reqIP = socket.inet_aton(socket.gethostbyname(socket.gethostname()))
+    
+    d = size = numPackets = {}
+    d.setdefault(0)
+    numPackets.setdefault(0)
+    size.setdefault(0)
+    start_t = datetime.utcnow()
+    
+    end = 0
+    while end != numSend:
+        packet, addr = socket.recvfrom(10000)
+        second_header, payload = decapsulate(packet)
+
+        if(second_header[3] != reqIP):
+            continue
+        header = struct.unpack_from("!cII",payload)
+        length = header[2]
+        size[(second_header[1], second_header[2])] += length
+
+        if header[0] != b'E':
+            numPackets[(second_header[1], second_header[2])] += 1 
+            received = struct.unpack_from(f"!{length}s",payload,offset=9)[0].decode('utf-8')
+
+            d[(second_header[1],second_header[2])][header[1]] = received
+
+            data = struct.pack(f"!cII",b'A', header[1], 0)
+            currPack = struct.pack(f"!B4sH4sHI{len(data)}s", 1, reqIP, f_port, 
+                                 second_header[1], second_header[2], len(data), data)
+            socket.sendto(currPack, (e_name, e_port))
+
+        else:
+            numPackets[(second_header[1],second_header[2])]
+            end +=1
+            end_t = datetime.utcnow()
+            milliseconds = (end_t - start_t)/timedelta(milliseconds=1)
+            print("-------SUMMARY-------")
+            print("Sender addr: ",socket.inet_ntoa(second_header[1]))
+            print("Total Data packets: ", numPackets[(second_header[1], second_header[2])])
+            print("Total Data bytes: ", size[(second_header[1], second_header[2])])
+            print("Average packets/second: ", 1000 * numPackets[(second_header[1], second_header[2])] / milliseconds)
+            print("Duration: ", milliseconds, " ms")
+            print("--------------------\n")
+
+    return d
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-p", "--port", help='Input requester port')
+    parser.add_argument("-o", "--fileoption")
+    parser.add_argument("-f", "--f_hostname", help='Input host name for the emulator')
+    parser.add_argument("-e", "--f_port", help='Input port number for the emulator')
+    parser.add_argument("-w", "--window", help='Input requester window size')
+    args = parser.parse_args()
+    
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    reqIP = socket.inet_aton(socket.gethostbyname(socket.gethostname()))
+    sock.bind((socket.gethostname(), int(args.port)))
+    with open(args.fileoption, "w+") as f:
+        d = sortTracker()
+        numSenders = len(d[args.fileoption])
+        for i in d[args.fileoption]: # send the req
+            id = i[0]
+            destIP = socket.inet_aton(socket.gethostbyname(i[1]))       
+            fileBytes = bytes(args.fileoption,'utf-8')
+            payload = struct.pack(f"!cII{len(fileBytes)}s",b'R',0, int(args.window), fileBytes)
+            packet = struct.pack(f"!B4sH4sHI{len(payload)}s", 1, reqIP, int(args.port), destIP, i[1], len(payload), payload)
+            sock.sendto(packet, (args.f_hostname, int(args.f_port)))
+
+        received = receiveData(sock, numSenders, args.f_hostname, int(args.f_port), int(args.port))
+
+        for i in d[args.fileoption]:
+            servIP = socket.inet_aton(socket.gethostbyname(i[1]))
+            serv_port = i[2]
+            received = sorted(received[servIP, serv_port].items())
+            for k, v in collections.OrderedDict(received).items():
+                with open(args.fileoption, "a") as f:
+                    f.write(v)
