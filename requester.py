@@ -3,7 +3,8 @@ import socket
 import struct
 import csv
 import collections
-import datetime
+from collections import defaultdict
+from datetime import datetime
 from datetime import timedelta
 
 def decapsulate(packet):
@@ -14,29 +15,24 @@ def decapsulate(packet):
 def sortTracker():
     with open("tracker.txt", "r") as f:
         reader = csv.reader(f,delimiter=' ')
-        d = {}
-        d.setdefault([])
+        dic = defaultdict(list)
         for r in reader:
-            d[r].append((int(r[1]), r[2], int(r[3])))
+            dic[r[0]].append((int(r[1]), r[2], int(r[3])))
         
-        for key in d.keys():
-            d[key] = sorted(d[key], key = lambda x: x[0])
-        return d
+        for key in dic.keys():
+            dic[key] = sorted(dic[key], key = lambda x: x[0])
+        return dic
 
 
-def receiveData(socket, numSend, f_port, e_name , e_port):
-    
+def receiveData(s, numSend, f_port, e_name , e_port):
     reqIP = socket.inet_aton(socket.gethostbyname(socket.gethostname()))
-    
-    d = size = numPackets = {}
-    d.setdefault(0)
-    numPackets.setdefault(0)
-    size.setdefault(0)
+    d = defaultdict(dict)
+    size = numPackets = defaultdict(int)
     start_t = datetime.utcnow()
     
     end = 0
     while end != numSend:
-        packet, addr = socket.recvfrom(10000)
+        packet, addr = s.recvfrom(10000)
         second_header, payload = decapsulate(packet)
 
         if(second_header[3] != reqIP):
@@ -54,7 +50,7 @@ def receiveData(socket, numSend, f_port, e_name , e_port):
             data = struct.pack(f"!cII",b'A', header[1], 0)
             currPack = struct.pack(f"!B4sH4sHI{len(data)}s", 1, reqIP, f_port, 
                                  second_header[1], second_header[2], len(data), data)
-            socket.sendto(currPack, (e_name, e_port))
+            s.sendto(currPack, (e_name, e_port))
 
         else:
             numPackets[(second_header[1],second_header[2])]
@@ -92,10 +88,10 @@ if __name__ == "__main__":
             destIP = socket.inet_aton(socket.gethostbyname(i[1]))       
             fileBytes = bytes(args.fileoption,'utf-8')
             payload = struct.pack(f"!cII{len(fileBytes)}s",b'R',0, int(args.window), fileBytes)
-            packet = struct.pack(f"!B4sH4sHI{len(payload)}s", 1, reqIP, int(args.port), destIP, i[1], len(payload), payload)
+            packet = struct.pack(f"!B4sH4sHI{len(payload)}s", 1, reqIP, int(args.port), destIP, i[2], len(payload), payload)
             sock.sendto(packet, (args.f_hostname, int(args.f_port)))
 
-        received = receiveData(sock, numSenders, args.f_hostname, int(args.f_port), int(args.port))
+        received = receiveData(sock, numSenders, int(args.f_port), args.f_hostname, int(args.port))
 
         for i in d[args.fileoption]:
             servIP = socket.inet_aton(socket.gethostbyname(i[1]))

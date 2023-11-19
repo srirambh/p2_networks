@@ -4,8 +4,9 @@ import argparse
 import struct
 from datetime import datetime
 import errno
+from collections import defaultdict
 
-packets_rec = {}
+packets_rec = defaultdict(bool)
 
 def readFile(filename):
     arr = []
@@ -70,8 +71,8 @@ if __name__ == "__main__":
         sect = bytes[i:min(i+int(args.length),len(bytes))]
         payload = struct.pack(f"!cII{len(sect)}s", b'D', seq_num, len(sect), sect)
         servIP = socket.inet_aton(socket.gethostbyname(socket.gethostname()))
-        packet = struct.pack(f"!B4sH4sHI{len(payload)}s", args.priority, servIP, args.port, 
-                             header[1], args.requestor_port, len(payload), payload)
+        packet = struct.pack(f"!B4sH4sHI{len(payload)}s", int(args.priority), servIP, int(args.port), 
+                             header[1], int(args.requester_port), len(payload), payload)
         buf.append(packet)
         seq_num+=1
     
@@ -79,7 +80,7 @@ if __name__ == "__main__":
     for i in range(0,len(buf),window):
         for j in range(i,min(i+window,len(buf))):
 
-            server.sendto(buf[j], args.f_hostname, args.f_port)
+            server.sendto(buf[j], (args.f_hostname, int(args.f_port)))
 
             times[j] = datetime.utcnow().timestamp() * 1000
             resend[j] = 0
@@ -97,7 +98,7 @@ if __name__ == "__main__":
                 receiveAck(server)
                 if(not packets_rec[j+1] and resend[j] <= 5):
                     check = False
-                if(not packets_rec[j+1] and resend[j] <5 and curr - times[j] > timeout):
+                if(not packets_rec[j+1] and resend[j] < 5 and curr - times[j] > timeout):
                     total += 1
                     server.sendto(buf[j], (args.f_hostname, int(args.f_port)))
                     times[j] = 1000 * datetime.utcnow().timestamp()
@@ -107,8 +108,8 @@ if __name__ == "__main__":
                         print(f"Error for packet with seq number: {seq_num}")
 
     servIP = socket.inet_aton(socket.gethostbyname(socket.gethostname()))
-    endPkt = struct.pack(f"!B4sH4sHI{len(payload)}s", args.priority, servIP, args.port, 
-                             header[1], args.requestor_port, len(payload), payload)
+    endPkt = struct.pack(f"!B4sH4sHI{len(payload)}s", int(args.priority), servIP, int(args.port), 
+                             header[1], int(args.requester_port), len(payload), payload)
     server.sendto(endPkt, (args.f_hostname, int(args.f_port)))
 
     print("Percent of packets lost: ",(total-expected)/total*100,"%")

@@ -1,0 +1,4 @@
+Josephs-MacBook-Air.local 6000 Josephs-MacBook-Air.local 4000 Josephs-MacBook-Air.local 3000 0 0
+Josephs-MacBook-Air.local 6000 Josephs-MacBook-Air.local 5000 Josephs-MacBook-Air.local 5000 0 0
+Josephs-MacBook-Air.local 3000 Josephs-MacBook-Air.local 4000 Josephs-MacBook-Air.local 4000 0 0
+Josephs-MacBook-Air.local 3000 Josephs-MacBook-Air.local 5000 Josephs-MacBook-Air.local 6000 0 0
