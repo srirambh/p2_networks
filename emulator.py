@@ -67,9 +67,11 @@ if __name__ == "__main__":
         if len(pkts) > 0 and datetime.utcnow().timestamp() * 1000 >= pkts[0][0] and delay:
             delay = False
             sendPacket(*pkts[0][1:])
+            print("sent packet")
             pkts.pop(0)
         try:
             packet, addr = s.recvfrom(10000)
+            print(addr)
         except socket.error as err:
             e = err.args[0]
             if not e == errno.EAGAIN and not e == errno.EWOULDBLOCK:

@@ -88,8 +88,13 @@ if __name__ == "__main__":
             destIP = socket.inet_aton(socket.gethostbyname(i[1]))       
             fileBytes = bytes(args.fileoption,'utf-8')
             payload = struct.pack(f"!cII{len(fileBytes)}s",b'R',0, int(args.window), fileBytes)
+            print((reqIP))
+            print(destIP)
+            print(i[2])
             packet = struct.pack(f"!B4sH4sHI{len(payload)}s", 1, reqIP, int(args.port), destIP, i[2], len(payload), payload)
             sock.sendto(packet, (args.f_hostname, int(args.f_port)))
+            print(args.f_hostname)
+            print(args.f_port)
 
         received = receiveData(sock, numSenders, int(args.f_port), args.f_hostname, int(args.port))
 
