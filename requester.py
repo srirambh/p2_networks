@@ -73,13 +73,13 @@ def receiveData(s, numSend, f_port, e_name , e_port):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("-p", "--port", help='Input requester port')
-    parser.add_argument("-o", "--fileoption")
-    parser.add_argument("-f", "--f_hostname", help='Input host name for the emulator')
-    parser.add_argument("-e", "--f_port", help='Input port number for the emulator')
-    parser.add_argument("-w", "--window", help='Input requester window size')
-    args = parser.parse_args()
+    p = argparse.ArgumentParser()
+    p.add_argument("-p", "--port", help='Input requester port')
+    p.add_argument("-o", "--fileoption")
+    p.add_argument("-f", "--f_hostname", help='Input host name for the emulator')
+    p.add_argument("-e", "--f_port", help='Input port number for the emulator')
+    p.add_argument("-w", "--window", help='Input requester window size')
+    args = p.parse_args()
     
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     reqIP = socket.inet_aton(socket.gethostbyname(socket.gethostname()))
