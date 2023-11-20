@@ -20,7 +20,7 @@ def decap(packet):
     data = struct.unpack_from(f"!{length}s", packet, offset=17)[0]
     return header, data
 
-def readFile(filename, b):
+def readFile(filename):
     arr = []
     with open(filename, "r+b") as f:
         arr = bytearray(f.read())
@@ -46,13 +46,7 @@ def handleAck(server):
         if e.args[0]  == errno.EAGAIN or e.args[0]  == errno.EWOULDBLOCK:
             pass
 
-def makePacket(priority, reqIP, reqPort, bytes, seq_num, ownPort):
-    payload = struct.pack(f"!cII{len(bytes)}s", b'D', seq_num, len(bytes), bytes)
-    ownIP = socket.inet_aton(socket.gethostbyname(socket.gethostname()))
-    packet = encap(priority, ownIP, ownPort, reqIP, reqPort, payload)
-    return packet
-
-def sendPacket(e_name, e_port, packet):
+def sendPack(e_name, e_port, packet):
     sock = socket.socket(socket.AF_INET,  socket.SOCK_DGRAM)
     sock.sendto(packet, (e_name, e_port))
 
@@ -64,95 +58,93 @@ def sendEnd(priority, requesterIP,requesterPort,emulatorHostname,emulatorPort,ow
     sock.sendto(packet, (emulatorHostname, emulatorPort))
         
 
-def printData(address,sequence,section):
-    print("DATA Packet")
-    print("send time: ",datetime.utcnow())
-    print("requester addr: ",address)
-    print("Sequence num: ",sequence)
-    print("length: ",len(section))
-    print("payload: ",section.decode('utf-8')[0:min(len(section),4)])
-    print("")
-
-def printEnd(address, sequence):
-    print("END Packet")
-    print("send time: ",datetime.utcnow())
-    print("requester addr: ",address)
-    print("Sequence num: ",sequence)
-    print("length: ",0)
-    print("payload: ")
-    print("")
-
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("-p", "--port")
-    parser.add_argument("-g", "--requester_port")
-    parser.add_argument("-r", "--rate")
-    parser.add_argument("-q", "--seq_no") #deprecated
-    parser.add_argument("-l", "--length")
-    parser.add_argument("-f", "--f_hostname")
-    parser.add_argument("-e", "--f_port")
-    parser.add_argument("-i", "--priority")
-    parser.add_argument("-t", "--timeout")
-    args = parser.parse_args()
-    serversocket = socket.socket(socket.AF_INET,  socket.SOCK_DGRAM)
-    serversocket.bind((socket.gethostname(), int(args.port)))
+    p = argparse.ArgumentParser()
+    p.add_argument("-p", "--port", help='Input sender port')
+    p.add_argument("-g", "--requester_port", help='Input requester port for receiver from ports')
+    p.add_argument("-r", "--rate", help='Input rate at which packets are sent')
+    p.add_argument("-q", "--seq_no", help='Input sequence of packet exchange') 
+    p.add_argument("-l", "--length", help='Input length of the payload')
+    p.add_argument("-f", "--f_hostname", help='Input host name for the emulator')
+    p.add_argument("-e", "--f_port", help='Input emulator port')
+    p.add_argument("-i", "--priority", help='Input level of priority for the sent packets')
+    p.add_argument("-t", "--timeout", help='Input time for retransmission of lost packets in ms')
+    args = p.parse_args()
+    sock = socket.socket(socket.AF_INET,  socket.SOCK_DGRAM)
+    sock.bind((socket.gethostname(), int(args.port)))
 
-    header, address, window, filename = receiveRequest(serversocket)
-    serversocket.setblocking(False)
-    timeoutMilliseconds = int(args.timeout)
-    totalTransmissions = 0
-    normalTransmissions = 0
+    header, address, window, filename = receiveRequest(sock)
+    
+    sock.setblocking(False)
+    
+    seq_num = 1
+    total = 0
+    success = 0
+    
+    bytes = readFile(filename)
+    buf = []
+    timeout = int(args.timeout)
+    for i in range(0, len(bytes), int(args.length)):
+        success += 1
+        total += 1
 
-    sequence = 1
-    with open(filename,"r+b") as file:
-        bytes = bytearray(file.read())
-        buffer = []
-        for i in range(0,len(bytes),int(args.length)):
-            normalTransmissions +=1
-            totalTransmissions+=1
-
-            section = bytes[i:min(i+int(args.length),len(bytes))]
-            buffer.append(makePacket(int(args.priority), header[1],int(args.requester_port),section,sequence,int(args.port)))
-            sequence+=1
+        sec = bytes[i : min(i + int(args.length), len(bytes))]
         
-        times = [0 for i in range(len(buffer))]
-        resendCount = [0 for i in range(len(buffer))]
-        for w in range(0,len(buffer),window):
-            for i in range(w,min(w+window,len(buffer))):
-                sendPacket(args.f_hostname, int(args.f_port), buffer[i])
-                print("sending packet to emu")
-                times[i] = datetime.utcnow().timestamp() * 1000
-                resendCount[i] = 0
-                time.sleep(1.0/int(args.rate))
+        data = struct.pack(f"!cII{len(sec)}s", b'D', seq_num, len(sec), sec)
+        send_ip = socket.inet_aton(socket.gethostbyname(socket.gethostname()))
+        packet = struct.pack(f"!B4sH4sHI{len(data)}s", int(args.priority), send_ip, int(args.port), 
+                             header[1], int(args.requester_port), len(data), data)
+
+        buf.append(packet)
+        seq_num += 1
+    
+    times = [0] * len(buf)
+    resend = [0] * len(buf)
+    for i in range(0, len(buf), window):
+        for j in range(i, min(len(buf), window + i)):
+            sendPack(args.f_hostname, int(args.f_port), buf[j])
+            print("sending packet to emu")
+            times[j] = datetime.utcnow().timestamp() * 1000
+            resend[j] = 0
+            time.sleep(1.0 / int(args.rate))
 
 
-            done = False
+        check = False
+        
+        while(not check):
+            check = True
+            for j in range(i, min(len(buf), window + i)):
+                now = datetime.utcnow().timestamp() * 1000
+                handleAck(sock)
+                if(not received_req[j+1] and resend[j] <= 5):
+                    check = False
+                if(not received_req[j+1] and resend[j] <5 and now - times[j] > timeout):
+                    total += 1
+                    print("sending packet to emu")
+                    sendPack(args.f_hostname,int(args.f_port), buf[j])
+                    times[j] = 1000 * datetime.utcnow().timestamp()
+                    resend[j] += 1
+                    time.sleep(1.0 / int(args.rate))  
+                    if(resend[j] == 5):
+                        print(f"Error: Retried sending packet {i+1} five times with no ACK")
+
+    # def sendEnd(priority, requesterIP,requesterPort,emulatorHostname,emulatorPort,ownPort):
+    #     sock = socket.socket(socket.AF_INET,  socket.SOCK_DGRAM)
+    #     ownIP = socket.inet_aton(socket.gethostbyname(socket.gethostname()))
+    #     packet = encap(priority, ownIP, ownPort, requesterIP, requesterPort, struct.pack(f"!cII",b'E',0,0))
+    #     sock.sendto(packet, (emulatorHostname, emulatorPort))
+
             
-            while(not done):
-                done = True
-                for i in range(w,min(w+window,len(buffer))):
-                    now = datetime.utcnow().timestamp() * 1000
-                    handleAck(serversocket)
-                    if(not received_req[i+1] and resendCount[i] <= 5):
-                        done = False
-                    if(not received_req[i+1] and resendCount[i] <5 and now - times[i]>timeoutMilliseconds):
-                        # print("Resending packet ",i+1)
-                        totalTransmissions+=1
-                        print("sending packet to emu")
-                        sendPacket(args.f_hostname,int(args.f_port),buffer[i])
-                        times[i] = datetime.utcnow().timestamp() * 1000
-                        resendCount[i]+=1
-                        time.sleep(1.0/int(args.rate))  
-                        if(resendCount[i]==5):
-                            print(f"Error: Retried sending packet {i+1} five times with no ACK")
+    # sendEnd(int(args.priority), header[1],int(args.requester_port),args.f_hostname,int(args.f_port),int(args.port))
 
-            #print("DONE!")
+    newsock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    send_ip = socket.inet_aton(socket.gethostbyname(socket.gethostname()))
+    endData = struct.pack(f"!cII",b'E',0,0)
+    packet = struct.pack(f"!B4sH4sHI{len(endData)}s", int(args.priority), send_ip, int(args.port), 
+                             header[1], int(args.requester_port), len(endData), endData)
+    newsock.sendto(packet, (args.f_hostname, int(args.f_port)))
 
-
-                
-        sendEnd(int(args.priority), header[1],int(args.requester_port),args.f_hostname,int(args.f_port),int(args.port))
-
-    print("Percent of packets lost: ",(totalTransmissions-normalTransmissions)/totalTransmissions*100,"%")
+    print("Percent of packets lost: ", 100 * (total-success) / total, "%")
         
 
-    serversocket.close()
+    sock.close()
