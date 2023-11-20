@@ -2,7 +2,7 @@ import argparse
 import socket
 import struct
 import csv
-import collections
+from collections import OrderedDict
 from collections import defaultdict
 from datetime import datetime
 from datetime import timedelta
@@ -10,7 +10,7 @@ from datetime import timedelta
 def decapsulate(packet):
     header = struct.unpack_from("!B4sH4sHI",packet)
     length = header[5]
-    return header, struct.unpack_from(f"!{length}s",packet,offset=17)[0]
+    return header, struct.unpack_from(f"!{length}s", packet, offset=17)[0]
 
 def sortTracker():
     with open("tracker.txt", "r") as f:
@@ -43,7 +43,7 @@ def receiveData(s, numSend, f_port, e_name , e_port):
 
         if header[0] != b'E':
             numPackets[(second_header[1], second_header[2])] += 1 
-            received = struct.unpack_from(f"!{length}s",payload,offset=9)[0].decode('utf-8')
+            received = struct.unpack_from(f"!{length}s", payload, offset=9)[0].decode('utf-8')
 
             d[(second_header[1],second_header[2])][header[1]] = received
 
@@ -53,10 +53,14 @@ def receiveData(s, numSend, f_port, e_name , e_port):
             s.sendto(currPack, (e_name, e_port))
 
         else:
-            numPackets[(second_header[1],second_header[2])]
             end +=1
             end_t = datetime.utcnow()
             milliseconds = (end_t - start_t)/timedelta(milliseconds=1)
+            print("END Packet")
+            print("send time: ",datetime.utcnow())
+            print("requester addr: ", socket.inet_ntoa(second_header[1]))
+            print("Sequence num: ", header[1])
+            print()
             print("-------SUMMARY-------")
             print("Sender addr: ",socket.inet_ntoa(second_header[1]))
             print("Total Data packets: ", numPackets[(second_header[1], second_header[2])])
@@ -87,21 +91,12 @@ if __name__ == "__main__":
             id = i[0]
             destIP = socket.inet_aton(socket.gethostbyname(i[1]))       
             fileBytes = bytes(args.fileoption,'utf-8')
-            payload = struct.pack(f"!cII{len(fileBytes)}s",b'R',0, int(args.window), fileBytes)
-            print((reqIP))
-            print(destIP)
-            print(i[2])
+            payload = struct.pack(f"!cII{len(fileBytes)}s", b'R', 0, int(args.window), fileBytes)
             packet = struct.pack(f"!B4sH4sHI{len(payload)}s", 1, reqIP, int(args.port), destIP, i[2], len(payload), payload)
             sock.sendto(packet, (args.f_hostname, int(args.f_port)))
-            print(args.f_hostname)
-            print(args.f_port)
 
-        received = receiveData(sock, numSenders, int(args.f_port), args.f_hostname, int(args.port))
-
+        received = receiveData(sock, numSenders, int(args.port), args.f_hostname, int(args.f_port))
         for i in d[args.fileoption]:
-            servIP = socket.inet_aton(socket.gethostbyname(i[1]))
-            serv_port = i[2]
-            received = sorted(received[servIP, serv_port].items())
-            for k, v in collections.OrderedDict(received).items():
+            for k, v in OrderedDict(sorted(received[socket.inet_aton(socket.gethostbyname(i[1])), i[2]].items())).items():
                 with open(args.fileoption, "a") as f:
                     f.write(v)

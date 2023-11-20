@@ -43,8 +43,6 @@ def sendPacket(n, packet, file, type):
         logLoss(packet,file,"Random Loss Occurred")
         return
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    print(n[0])
-    print(n[1])
     s.sendto(packet,(n[0], n[1]))
 
 if __name__ == "__main__":
@@ -67,11 +65,9 @@ if __name__ == "__main__":
         if len(pkts) > 0 and datetime.utcnow().timestamp() * 1000 >= pkts[0][0] and delay:
             delay = False
             sendPacket(*pkts[0][1:])
-            print("sent packet")
             pkts.pop(0)
         try:
             packet, addr = s.recvfrom(10000)
-            print(addr)
         except socket.error as err:
             e = err.args[0]
             if not e == errno.EAGAIN and not e == errno.EWOULDBLOCK:
@@ -85,7 +81,7 @@ if __name__ == "__main__":
             if(not tab[(header[3], header[4])]):
                 logLoss(packet,args.log,"no forwarding entry found")
                 continue
-            if(len(struct.unpack_from("!cII", payload)[0] == b'E' or queue[prior-1]) < int(args.queue_size)):
+            if(struct.unpack_from("!cII", payload)[0] == b'E' or len(queue[prior-1]) < int(args.queue_size)):
                 queue[prior-1].append(packet)
 
             else:
