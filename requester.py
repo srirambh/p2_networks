@@ -84,19 +84,24 @@ if __name__ == "__main__":
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     reqIP = socket.inet_aton(socket.gethostbyname(socket.gethostname()))
     sock.bind((socket.gethostname(), int(args.port)))
-    with open(args.fileoption, "w+") as f:
-        d = sortTracker()
-        numSenders = len(d[args.fileoption])
-        for i in d[args.fileoption]: # send the req
-            id = i[0]
-            destIP = socket.inet_aton(socket.gethostbyname(i[1]))       
-            fileBytes = bytes(args.fileoption,'utf-8')
-            payload = struct.pack(f"!cII{len(fileBytes)}s", b'R', 0, int(args.window), fileBytes)
-            packet = struct.pack(f"!B4sH4sHI{len(payload)}s", 1, reqIP, int(args.port), destIP, i[2], len(payload), payload)
-            sock.sendto(packet, (args.f_hostname, int(args.f_port)))
+    
+    d = sortTracker()
+    numSenders = len(d[args.fileoption])
+    for i in d[args.fileoption]: # send the req
+        id = i[0]
+        destIP = socket.inet_aton(socket.gethostbyname(i[1]))       
+        fileBytes = bytes(args.fileoption,'utf-8')
+        payload = struct.pack(f"!cII{len(fileBytes)}s", b'R', 0, int(args.window), fileBytes)
+        packet = struct.pack(f"!B4sH4sHI{len(payload)}s", 1, reqIP, int(args.port), destIP, i[2], len(payload), payload)
+        sock.sendto(packet, (args.f_hostname, int(args.f_port)))
 
-        received = receiveData(sock, numSenders, int(args.port), args.f_hostname, int(args.f_port))
-        with open(args.fileoption, "a") as f:
-            for i in d[args.fileoption]:
-                for k, v in OrderedDict(sorted(received[socket.inet_aton(socket.gethostbyname(i[1])), i[2]].items())).items():
-                    f.write(v)
+    with open(args.fileoption, "w") as f:
+        pass
+    print("file write")
+    received = receiveData(sock, numSenders, int(args.port), args.f_hostname, int(args.f_port))
+    print("data received")
+    for i in d[args.fileoption]:
+        for k, v in OrderedDict(sorted(received[socket.inet_aton(socket.gethostbyname(i[1])), i[2]].items())).items():
+            with open(args.fileoption, "a") as f:
+                f.write(v)
+                

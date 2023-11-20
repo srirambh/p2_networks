@@ -53,24 +53,26 @@ if __name__ == "__main__":
     p.add_argument("-l", "--log")
     args = p.parse_args()
     tab = parseTab(socket.gethostname(), args.filename, int(args.port))
+    print(tab)
     s = socket.socket(socket.AF_INET,  socket.SOCK_DGRAM)
     s.bind((socket.gethostname(), int(args.port)))
-    s.setblocking(0)
-    with open(args.log, "w+") as f: #Change
+    s.setblocking(False)
+    with open(args.log, "w") as f: #Change
         pass
     pkts  = []
     delay = False
     queue = [[],[],[]]
+    print(socket.gethostname() == "localhost", int(args.port))
     while(True):
         if len(pkts) > 0 and datetime.utcnow().timestamp() * 1000 >= pkts[0][0] and delay:
             delay = False
+            print(*pkts[0][1:])
             sendPacket(*pkts[0][1:])
             pkts.pop(0)
         try:
             packet, addr = s.recvfrom(10000)
         except socket.error as err:
-            e = err.args[0]
-            if not e == errno.EAGAIN and not e == errno.EWOULDBLOCK:
+            if not err.args[0] == errno.EAGAIN and not err.args[0] == errno.EWOULDBLOCK:
                 print(err)
                 break
             else:
@@ -79,21 +81,23 @@ if __name__ == "__main__":
             header, payload = decapsulate(packet)
             prior = header[0]
             if(not tab[(header[3], header[4])]):
-                logLoss(packet,args.log,"no forwarding entry found")
+                logLoss(packet, args.log, "no forwarding entry found")
                 continue
             if(struct.unpack_from("!cII", payload)[0] == b'E' or len(queue[prior-1]) < int(args.queue_size)):
                 queue[prior-1].append(packet)
 
             else:
-                logLoss(packet,args.log, f"priority queue {prior} was full")
+                logLoss(packet, args.log, f"priority queue {prior} was full")
         
         if(not delay): #Step 4
             for p in range(3):
                 if(queue[p]):
-                    delay=True
-                    sentPkt = queue[p].pop(0)
+                    delay = True
+                    sentPkt = queue[p].pop(0) 
                     header, payload = decapsulate(sentPkt)
+                    print("header: " + str(header))
                     pkts.append([(datetime.utcnow().timestamp() * 1000) + (tab[(header[3], header[4])][2]*1000), tab[(header[3], header[4])],sentPkt,args.log,struct.unpack_from("!cII", payload)[0]])
+                    print(pkts)
                     break
             
         
