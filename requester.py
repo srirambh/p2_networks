@@ -96,7 +96,7 @@ if __name__ == "__main__":
             sock.sendto(packet, (args.f_hostname, int(args.f_port)))
 
         received = receiveData(sock, numSenders, int(args.port), args.f_hostname, int(args.f_port))
-        for i in d[args.fileoption]:
-            for k, v in OrderedDict(sorted(received[socket.inet_aton(socket.gethostbyname(i[1])), i[2]].items())).items():
-                with open(args.fileoption, "a") as f:
+        with open(args.fileoption, "a") as f:
+            for i in d[args.fileoption]:
+                for k, v in OrderedDict(sorted(received[socket.inet_aton(socket.gethostbyname(i[1])), i[2]].items())).items():
                     f.write(v)
